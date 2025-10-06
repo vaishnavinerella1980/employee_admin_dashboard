@@ -343,7 +343,8 @@ class AttendanceNotifier extends Notifier<AttendanceState> {
   }
 }
 
-final attendanceProvider = NotifierProvider<AttendanceNotifier, AttendanceState>(
+final attendanceProvider =
+    NotifierProvider<AttendanceNotifier, AttendanceState>(
   () => AttendanceNotifier(),
 );
 
@@ -398,6 +399,12 @@ final employeesByDepartmentProvider =
       .where((emp) => emp.department?.toLowerCase() == department.toLowerCase())
       .toList();
 });
+
+// ========================================
+// REPORTS API PROVIDER
+// ========================================
+
+final reportsApiProvider = Provider((ref) => ApiService);
 
 // Get active attendance records
 final activeAttendanceProvider =

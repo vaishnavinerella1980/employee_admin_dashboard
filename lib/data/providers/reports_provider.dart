@@ -1,9 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:employee_admin_dashboard/data/models/report.dart';
-import 'package:employee_admin_dashboard/data/providers/riverpod_providers.dart' as rp;
-import 'package:employee_admin_dashboard/data/models/employee.dart' as employee_model;
-import 'package:employee_admin_dashboard/data/models/data_models.dart' as data_models;
+import 'package:employee_admin_dashboard/data/providers/riverpod_providers.dart'
+    as rp;
+import 'package:employee_admin_dashboard/data/models/employee.dart'
+    as employee_model;
+import 'package:employee_admin_dashboard/data/models/data_models.dart'
+    as data_models;
+import 'package:employee_admin_dashboard/data/providers/riverpod_providers.dart';
+import 'package:employee_admin_dashboard/data/api_service.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -54,11 +59,11 @@ class ReportsNotifier extends Notifier<ReportsState> {
     try {
       state = state.copyWith(isLoading: true, error: null);
 
-      // For now, we'll use mock data. In a real app, this would load from a database or API
-      final mockReports = await _getMockReports();
+      // Use mock data for now - in a real app, this would call the API
+      final reports = await _getMockReports();
 
       state = state.copyWith(
-        reports: mockReports,
+        reports: reports,
         isLoading: false,
       );
     } catch (e) {
@@ -79,32 +84,24 @@ class ReportsNotifier extends Notifier<ReportsState> {
     try {
       state = state.copyWith(isGeneratingReport: true, error: null);
 
-      // Get data from other providers
-      final attendanceRecords = ref.read(rp.attendanceProvider).records;
-      final employees = ref.read(rp.employeeProvider).employees;
-
-      // Generate report data based on type
-      final reportData = await _generateReportData(
+      final response = await ApiService.generateReport(
         reportType: reportType,
         period: period,
         fromDate: fromDate,
         toDate: toDate,
         department: department,
-        attendanceRecords: attendanceRecords,
-        employees: employees,
       );
 
-      // Create report file
-      final report = await _createReportFile(reportData);
-
-      // Add to reports list
-      final updatedReports = [report, ...state.reports];
-      state = state.copyWith(
-        reports: updatedReports,
-        isGeneratingReport: false,
-      );
-
-      debugPrint('Report generated successfully: ${report.name}');
+      if (response['success'] == true) {
+        await loadReports();
+        state = state.copyWith(isGeneratingReport: false);
+        debugPrint('Report generated successfully');
+      } else {
+        state = state.copyWith(
+          isGeneratingReport: false,
+          error: response['message'] ?? 'Failed to generate report',
+        );
+      }
     } catch (e) {
       state = state.copyWith(
         isGeneratingReport: false,
@@ -115,18 +112,18 @@ class ReportsNotifier extends Notifier<ReportsState> {
 
   Future<void> downloadReport(String reportId) async {
     try {
-      final report = state.reports.firstWhere((r) => r.id == reportId);
+      final response = await ApiService.downloadReport(reportId);
 
-      // In a real app, this would download from a server
-      // For now, we'll just show the file exists
-      final file = File(report.filePath);
-      if (await file.exists()) {
-        debugPrint('Report downloaded: ${report.filePath}');
+      if (response['success'] == true) {
+        debugPrint('Report downloaded successfully');
       } else {
-        throw Exception('Report file not found');
+        state = state.copyWith(
+          error: response['message'] ?? 'Failed to download report',
+        );
       }
     } catch (e) {
-      state = state.copyWith(error: 'Failed to download report: ${e.toString()}');
+      state =
+          state.copyWith(error: 'Failed to download report: ${e.toString()}');
     }
   }
 
@@ -144,17 +141,16 @@ class ReportsNotifier extends Notifier<ReportsState> {
 
   Future<void> deleteReport(String reportId) async {
     try {
-      final report = state.reports.firstWhere((r) => r.id == reportId);
+      final response = await ApiService.deleteReport(reportId);
 
-      // Delete file
-      final file = File(report.filePath);
-      if (await file.exists()) {
-        await file.delete();
+      if (response['success'] == true) {
+        await loadReports();
+        debugPrint('Report deleted successfully');
+      } else {
+        state = state.copyWith(
+          error: response['message'] ?? 'Failed to delete report',
+        );
       }
-
-      // Remove from list
-      final updatedReports = state.reports.where((r) => r.id != reportId).toList();
-      state = state.copyWith(reports: updatedReports);
     } catch (e) {
       state = state.copyWith(error: 'Failed to delete report: ${e.toString()}');
     }
@@ -217,7 +213,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
     final now = DateTime.now();
 
     // Filter records based on period
-    final filteredRecords = _filterRecordsByPeriod(attendanceRecords, period, fromDate, toDate);
+    final filteredRecords =
+        _filterRecordsByPeriod(attendanceRecords, period, fromDate, toDate);
 
     // Filter by department if specified
     final filteredEmployees = department != null && department != 'All'
@@ -234,7 +231,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
       'totalEmployees': filteredEmployees.length,
       'totalRecords': filteredRecords.length,
       'summary': _calculateSummary(filteredRecords, filteredEmployees),
-      'data': _generateReportContent(reportType, filteredRecords, filteredEmployees),
+      'data': _generateReportContent(
+          reportType, filteredRecords, filteredEmployees),
     };
 
     return reportData;
@@ -288,44 +286,58 @@ class ReportsNotifier extends Notifier<ReportsState> {
 
     switch (period) {
       case 'Today':
-        return records.where((r) =>
-            r.loginTime.year == now.year &&
-            r.loginTime.month == now.month &&
-            r.loginTime.day == now.day).toList();
+        return records
+            .where((r) =>
+                r.loginTime.year == now.year &&
+                r.loginTime.month == now.month &&
+                r.loginTime.day == now.day)
+            .toList();
 
       case 'This Week':
         final weekStart = now.subtract(Duration(days: now.weekday - 1));
         final weekEnd = weekStart.add(const Duration(days: 6));
-        return records.where((r) =>
-            r.loginTime.isAfter(weekStart.subtract(const Duration(days: 1))) &&
-            r.loginTime.isBefore(weekEnd.add(const Duration(days: 1)))).toList();
+        return records
+            .where((r) =>
+                r.loginTime
+                    .isAfter(weekStart.subtract(const Duration(days: 1))) &&
+                r.loginTime.isBefore(weekEnd.add(const Duration(days: 1))))
+            .toList();
 
       case 'This Month':
-        return records.where((r) =>
-            r.loginTime.year == now.year &&
-            r.loginTime.month == now.month).toList();
+        return records
+            .where((r) =>
+                r.loginTime.year == now.year && r.loginTime.month == now.month)
+            .toList();
 
       case 'Last Month':
         final lastMonth = DateTime(now.year, now.month - 1);
-        return records.where((r) =>
-            r.loginTime.year == lastMonth.year &&
-            r.loginTime.month == lastMonth.month).toList();
+        return records
+            .where((r) =>
+                r.loginTime.year == lastMonth.year &&
+                r.loginTime.month == lastMonth.month)
+            .toList();
 
       case 'This Quarter':
         final quarterStart = DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1);
         final quarterEnd = DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 4);
-        return records.where((r) =>
-            r.loginTime.isAfter(quarterStart.subtract(const Duration(days: 1))) &&
-            r.loginTime.isBefore(quarterEnd)).toList();
+        return records
+            .where((r) =>
+                r.loginTime
+                    .isAfter(quarterStart.subtract(const Duration(days: 1))) &&
+                r.loginTime.isBefore(quarterEnd))
+            .toList();
 
       case 'This Year':
         return records.where((r) => r.loginTime.year == now.year).toList();
 
       case 'Custom Range':
         if (fromDate != null && toDate != null) {
-          return records.where((r) =>
-              r.loginTime.isAfter(fromDate.subtract(const Duration(days: 1))) &&
-              r.loginTime.isBefore(toDate.add(const Duration(days: 1)))).toList();
+          return records
+              .where((r) =>
+                  r.loginTime
+                      .isAfter(fromDate.subtract(const Duration(days: 1))) &&
+                  r.loginTime.isBefore(toDate.add(const Duration(days: 1))))
+              .toList();
         }
         return records;
 
@@ -340,7 +352,8 @@ class ReportsNotifier extends Notifier<ReportsState> {
   ) {
     final totalHours = records
         .where((r) => r.workDuration != null)
-        .fold<Duration>(Duration.zero, (sum, r) => sum + (r.workDuration ?? Duration.zero));
+        .fold<Duration>(
+            Duration.zero, (sum, r) => sum + (r.workDuration ?? Duration.zero));
 
     final activeRecords = records.where((r) => r.isActive).length;
     final completedRecords = records.where((r) => !r.isActive).length;
@@ -351,8 +364,10 @@ class ReportsNotifier extends Notifier<ReportsState> {
       'completedRecords': completedRecords,
       'totalEmployees': employees.length,
       'totalHours': totalHours.inHours,
-      'averageHoursPerEmployee': employees.isNotEmpty ? totalHours.inHours / employees.length : 0,
-      'attendanceRate': records.isNotEmpty ? (completedRecords / records.length) * 100 : 0,
+      'averageHoursPerEmployee':
+          employees.isNotEmpty ? totalHours.inHours / employees.length : 0,
+      'attendanceRate':
+          records.isNotEmpty ? (completedRecords / records.length) * 100 : 0,
     };
   }
 
@@ -382,10 +397,12 @@ class ReportsNotifier extends Notifier<ReportsState> {
     List<employee_model.Employee> employees,
   ) {
     return employees.map((employee) {
-      final employeeRecords = records.where((r) => r.employeeId == employee.id).toList();
+      final employeeRecords =
+          records.where((r) => r.employeeId == employee.id).toList();
       final totalHours = employeeRecords
           .where((r) => r.workDuration != null)
-          .fold<Duration>(Duration.zero, (sum, r) => sum + (r.workDuration ?? Duration.zero));
+          .fold<Duration>(Duration.zero,
+              (sum, r) => sum + (r.workDuration ?? Duration.zero));
 
       return {
         'employeeId': employee.id,
@@ -438,13 +455,16 @@ class ReportsNotifier extends Notifier<ReportsState> {
     final departments = employees.map((e) => e.department).toSet().toList();
 
     return departments.map((dept) {
-      final deptEmployees = employees.where((e) => e.department == dept).toList();
-      final deptRecords = records.where((r) =>
-          deptEmployees.any((e) => e.id == r.employeeId)).toList();
+      final deptEmployees =
+          employees.where((e) => e.department == dept).toList();
+      final deptRecords = records
+          .where((r) => deptEmployees.any((e) => e.id == r.employeeId))
+          .toList();
 
       final totalHours = deptRecords
           .where((r) => r.workDuration != null)
-          .fold<Duration>(Duration.zero, (sum, r) => sum + (r.workDuration ?? Duration.zero));
+          .fold<Duration>(Duration.zero,
+              (sum, r) => sum + (r.workDuration ?? Duration.zero));
 
       return {
         'department': dept,
@@ -452,7 +472,9 @@ class ReportsNotifier extends Notifier<ReportsState> {
         'activeEmployees': deptEmployees.where((e) => e.isActive).length,
         'totalRecords': deptRecords.length,
         'totalHours': totalHours.inHours,
-        'averageHoursPerEmployee': deptEmployees.isNotEmpty ? totalHours.inHours / deptEmployees.length : 0,
+        'averageHoursPerEmployee': deptEmployees.isNotEmpty
+            ? totalHours.inHours / deptEmployees.length
+            : 0,
       };
     }).toList();
   }
@@ -498,12 +520,15 @@ class ReportsNotifier extends Notifier<ReportsState> {
     List<employee_model.Employee> employees,
   ) {
     return employees.map((employee) {
-      final employeeRecords = records.where((r) => r.employeeId == employee.id).toList();
-      final completedRecords = employeeRecords.where((r) => !r.isActive).toList();
+      final employeeRecords =
+          records.where((r) => r.employeeId == employee.id).toList();
+      final completedRecords =
+          employeeRecords.where((r) => !r.isActive).toList();
 
       final totalHours = completedRecords
           .where((r) => r.workDuration != null)
-          .fold<Duration>(Duration.zero, (sum, r) => sum + (r.workDuration ?? Duration.zero));
+          .fold<Duration>(Duration.zero,
+              (sum, r) => sum + (r.workDuration ?? Duration.zero));
 
       final averageHours = completedRecords.isNotEmpty
           ? totalHours.inHours / completedRecords.length
@@ -542,7 +567,8 @@ final recentReportsProvider = Provider<List<Report>>((ref) {
 });
 
 // Reports by type
-final reportsByTypeProvider = Provider.family<List<Report>, String>((ref, type) {
+final reportsByTypeProvider =
+    Provider.family<List<Report>, String>((ref, type) {
   final reportsState = ref.watch(reportsProvider);
   return reportsState.reports.where((report) => report.type == type).toList();
 });
@@ -553,9 +579,11 @@ final reportStatsProvider = Provider<Map<String, dynamic>>((ref) {
   final reports = reportsState.reports;
 
   final totalReports = reports.length;
-  final thisMonthReports = reports.where((r) =>
-      r.generatedAt.year == DateTime.now().year &&
-      r.generatedAt.month == DateTime.now().month).length;
+  final thisMonthReports = reports
+      .where((r) =>
+          r.generatedAt.year == DateTime.now().year &&
+          r.generatedAt.month == DateTime.now().month)
+      .length;
 
   final totalSize = reports.fold<int>(0, (sum, r) => sum + r.fileSize);
 

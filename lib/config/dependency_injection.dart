@@ -1,3 +1,4 @@
+import 'package:employee_admin_dashboard/data/auth_api.dart';
 import 'package:employee_admin_dashboard/data/employee_api.dart';
 import 'package:employee_admin_dashboard/data/employee_local_datasource.dart';
 import 'package:employee_admin_dashboard/data/employee_remote_datasource.dart';
@@ -6,6 +7,7 @@ import 'package:employee_admin_dashboard/data/providers/employee_repository.dart
 import 'package:employee_admin_dashboard/data/providers/employee_repository_interface.dart';
 import 'package:employee_admin_dashboard/data/providers/time_tracking_repository.dart';
 import 'package:employee_admin_dashboard/data/providers/time_tracking_repository_interface.dart';
+import 'package:employee_admin_dashboard/data/reports_api.dart';
 import 'package:employee_admin_dashboard/data/time_tracking_api.dart';
 import 'package:employee_admin_dashboard/data/time_tracking_local_datasource.dart';
 import 'package:employee_admin_dashboard/data/time_tracking_remote_datasource.dart';
@@ -45,9 +47,17 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<EmployeeApi>(
     () => EmployeeApi(getIt<Dio>()),
   );
-  
+
   getIt.registerLazySingleton<TimeTrackingApi>(
     () => TimeTrackingApi(getIt<Dio>()),
+  );
+
+  getIt.registerLazySingleton<AuthApi>(
+    () => AuthApi(getIt<Dio>()),
+  );
+
+  getIt.registerLazySingleton<ReportsApi>(
+    () => ReportsApi(getIt<Dio>()),
   );
   
   // 6. Register Local DataSources
