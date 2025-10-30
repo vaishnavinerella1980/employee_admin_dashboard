@@ -70,3 +70,4 @@ class EmployeeListResponse {
       _$EmployeeListResponseFromJson(json);
   Map<String, dynamic> toJson() => _$EmployeeListResponseToJson(this);
 }
+

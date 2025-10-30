@@ -1,4 +1,7 @@
 import 'package:employee_admin_dashboard/domain/employee/get_all_employees.dart';
+import 'package:employee_admin_dashboard/domain/employee/create_employee.dart';
+import 'package:employee_admin_dashboard/domain/employee/update_employee.dart';
+import 'package:employee_admin_dashboard/domain/employee/delete_employee.dart';
 import 'package:employee_admin_dashboard/domain/entities/employee_entity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -13,10 +16,16 @@ final employeeProvider = NotifierProvider<EmployeeNotifier, EmployeeState>(() {
 
 class EmployeeNotifier extends Notifier<EmployeeState> {
   late final GetAllEmployees _getAllEmployees;
+  late final CreateEmployee _createEmployee;
+  late final UpdateEmployee _updateEmployee;
+  late final DeleteEmployee _deleteEmployee;
 
   @override
   EmployeeState build() {
     _getAllEmployees = getIt<GetAllEmployees>();
+    _createEmployee = getIt<CreateEmployee>();
+    _updateEmployee = getIt<UpdateEmployee>();
+    _deleteEmployee = getIt<DeleteEmployee>();
     return const EmployeeState.initial();
   }
 
@@ -46,6 +55,67 @@ class EmployeeNotifier extends Notifier<EmployeeState> {
         return EmployeeState.loaded(filteredEmployees);
       },
       orElse: () => state,
+    );
+  }
+
+  Future<void> createEmployee(EmployeeEntity employee) async {
+    state = const EmployeeState.loading();
+
+    final result = await _createEmployee(employee);
+
+    result.fold(
+      (failure) => state = EmployeeState.error(failure.message),
+      (createdEmployee) {
+        state = state.maybeMap(
+          loaded: (loadedState) {
+            final updatedEmployees = [
+              ...loadedState.employees,
+              createdEmployee
+            ];
+            return EmployeeState.loaded(updatedEmployees);
+          },
+          orElse: () => EmployeeState.loaded([createdEmployee]),
+        );
+      },
+    );
+  }
+
+  Future<void> updateEmployee(EmployeeEntity employee) async {
+    state = const EmployeeState.loading();
+
+    final result = await _updateEmployee(employee);
+
+    result.fold(
+      (failure) => state = EmployeeState.error(failure.message),
+      (updatedEmployee) {
+        state = state.maybeMap(
+          loaded: (loadedState) {
+            final updatedEmployees = loadedState.employees.map((e) {
+              return e.id == employee.id ? updatedEmployee : e;
+            }).toList();
+            return EmployeeState.loaded(updatedEmployees);
+          },
+          orElse: () => state,
+        );
+      },
+    );
+  }
+
+  Future<void> deleteEmployee(String employeeId) async {
+    final result = await _deleteEmployee(employeeId);
+
+    result.fold(
+      (failure) => state = EmployeeState.error(failure.message),
+      (_) {
+        state = state.maybeMap(
+          loaded: (loadedState) {
+            final updatedEmployees =
+                loadedState.employees.where((e) => e.id != employeeId).toList();
+            return EmployeeState.loaded(updatedEmployees);
+          },
+          orElse: () => state,
+        );
+      },
     );
   }
 }

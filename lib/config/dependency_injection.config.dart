@@ -29,8 +29,14 @@ import 'package:employee_admin_dashboard/data/time_tracking_local_datasource.dar
     as _i240;
 import 'package:employee_admin_dashboard/data/time_tracking_remote_datasource.dart'
     as _i168;
+import 'package:employee_admin_dashboard/domain/employee/create_employee.dart'
+    as _i977;
+import 'package:employee_admin_dashboard/domain/employee/delete_employee.dart'
+    as _i665;
 import 'package:employee_admin_dashboard/domain/employee/get_all_employees.dart'
     as _i578;
+import 'package:employee_admin_dashboard/domain/employee/update_employee.dart'
+    as _i121;
 import 'package:employee_admin_dashboard/domain/employee_tracking/clock_in_employee.dart'
     as _i354;
 import 'package:employee_admin_dashboard/domain/employee_tracking/clock_out_employee.dart'
@@ -73,6 +79,12 @@ extension GetItInjectableX on _i174.GetIt {
             ));
     gh.factory<_i578.GetAllEmployees>(
         () => _i578.GetAllEmployees(gh<_i881.EmployeeRepository>()));
+    gh.factory<_i977.CreateEmployee>(
+        () => _i977.CreateEmployee(gh<_i881.EmployeeRepository>()));
+    gh.factory<_i665.DeleteEmployee>(
+        () => _i665.DeleteEmployee(gh<_i881.EmployeeRepository>()));
+    gh.factory<_i121.UpdateEmployee>(
+        () => _i121.UpdateEmployee(gh<_i881.EmployeeRepository>()));
     gh.factory<_i354.ClockInEmployee>(
         () => _i354.ClockInEmployee(gh<_i592.TimeTrackingRepository>()));
     gh.factory<_i238.ClockOutEmployee>(

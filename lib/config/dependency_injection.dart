@@ -12,6 +12,9 @@ import 'package:employee_admin_dashboard/data/time_tracking_api.dart';
 import 'package:employee_admin_dashboard/data/time_tracking_local_datasource.dart';
 import 'package:employee_admin_dashboard/data/time_tracking_remote_datasource.dart';
 import 'package:employee_admin_dashboard/domain/employee/get_all_employees.dart';
+import 'package:employee_admin_dashboard/domain/employee/create_employee.dart';
+import 'package:employee_admin_dashboard/domain/employee/update_employee.dart';
+import 'package:employee_admin_dashboard/domain/employee/delete_employee.dart';
 import 'package:employee_admin_dashboard/domain/employee_tracking/clock_in_employee.dart';
 import 'package:employee_admin_dashboard/domain/employee_tracking/clock_out_employee.dart';
 import 'package:get_it/get_it.dart';
@@ -28,21 +31,21 @@ Future<void> configureDependencies() async {
   // 1. Register SharedPreferences
   final sharedPreferences = await SharedPreferences.getInstance();
   getIt.registerSingleton<SharedPreferences>(sharedPreferences);
-  
+
   // 2. Register Database
   final database = await LocalDatabase.initialize();
   getIt.registerSingleton<LocalDatabase>(database);
-  
+
   // 3. Register API Client
   getIt.registerLazySingleton<ApiClient>(
     () => ApiClient(getIt<SharedPreferences>()),
   );
-  
+
   // 4. Register Dio
   getIt.registerLazySingleton<Dio>(
     () => getIt<ApiClient>().dio,
   );
-  
+
   // 5. Register API Services
   getIt.registerLazySingleton<EmployeeApi>(
     () => EmployeeApi(getIt<Dio>()),
@@ -59,25 +62,25 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<ReportsApi>(
     () => ReportsApi(getIt<Dio>()),
   );
-  
+
   // 6. Register Local DataSources
   getIt.registerLazySingleton<EmployeeLocalDataSource>(
     () => EmployeeLocalDataSourceImpl(getIt<LocalDatabase>()),
   );
-  
+
   getIt.registerLazySingleton<TimeTrackingLocalDataSource>(
     () => TimeTrackingLocalDataSourceImpl(getIt<LocalDatabase>()),
   );
-  
+
   // 7. Register Remote DataSources
   getIt.registerLazySingleton<EmployeeRemoteDataSource>(
     () => EmployeeRemoteDataSourceImpl(getIt<EmployeeApi>()),
   );
-  
+
   getIt.registerLazySingleton<TimeTrackingRemoteDataSource>(
     () => TimeTrackingRemoteDataSourceImpl(getIt<TimeTrackingApi>()),
   );
-  
+
   // 8. Register Repositories
   getIt.registerLazySingleton<EmployeeRepository>(
     () => EmployeeRepositoryImpl(
@@ -85,23 +88,35 @@ Future<void> configureDependencies() async {
       remoteDataSource: getIt<EmployeeRemoteDataSource>(),
     ),
   );
-  
+
   getIt.registerLazySingleton<TimeTrackingRepository>(
     () => TimeTrackingRepositoryImpl(
       localDataSource: getIt<TimeTrackingLocalDataSource>(),
       remoteDataSource: getIt<TimeTrackingRemoteDataSource>(),
     ),
   );
-  
+
   // 9. Register Use Cases
   getIt.registerLazySingleton<GetAllEmployees>(
     () => GetAllEmployees(getIt<EmployeeRepository>()),
   );
-  
+
+  getIt.registerLazySingleton<CreateEmployee>(
+    () => CreateEmployee(getIt<EmployeeRepository>()),
+  );
+
+  getIt.registerLazySingleton<UpdateEmployee>(
+    () => UpdateEmployee(getIt<EmployeeRepository>()),
+  );
+
+  getIt.registerLazySingleton<DeleteEmployee>(
+    () => DeleteEmployee(getIt<EmployeeRepository>()),
+  );
+
   getIt.registerLazySingleton<ClockInEmployee>(
     () => ClockInEmployee(getIt<TimeTrackingRepository>()),
   );
-  
+
   getIt.registerLazySingleton<ClockOutEmployee>(
     () => ClockOutEmployee(getIt<TimeTrackingRepository>()),
   );

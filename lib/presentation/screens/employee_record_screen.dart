@@ -415,38 +415,185 @@ class _EmployeeRecordsScreenState extends ConsumerState<EmployeeRecordsScreen> {
   }
 
   void _showAddEmployeeDialog() {
+    final _formKey = GlobalKey<FormState>();
+    final _nameController = TextEditingController();
+    final _emailController = TextEditingController();
+    final _departmentController = TextEditingController();
+    final _positionController = TextEditingController();
+    final _phoneController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add Employee'),
-        content:
-            const Text('Add employee functionality will be implemented here.'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _departmentController,
+                  decoration: const InputDecoration(labelText: 'Department'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _positionController,
+                  decoration: const InputDecoration(labelText: 'Position'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration:
+                      const InputDecoration(labelText: 'Phone (Optional)'),
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Add')),
+            onPressed: () async {
+              if (_formKey.currentState?.validate() ?? false) {
+                final employee = EmployeeEntity(
+                  id: 'emp_${DateTime.now().millisecondsSinceEpoch}',
+                  name: _nameController.text,
+                  email: _emailController.text,
+                  department: _departmentController.text,
+                  position: _positionController.text,
+                  phoneNumber: _phoneController.text.isEmpty
+                      ? null
+                      : _phoneController.text,
+                  isActive: true,
+                  isClockedIn: false,
+                );
+
+                await ref
+                    .read(employeeProvider.notifier)
+                    .createEmployee(employee);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text('${employee.name} added successfully')),
+                );
+              }
+            },
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
   }
 
   void _showEditEmployeeDialog(EmployeeEntity employee) {
+    final _formKey = GlobalKey<FormState>();
+    final _nameController = TextEditingController(text: employee.name);
+    final _emailController = TextEditingController(text: employee.email);
+    final _departmentController =
+        TextEditingController(text: employee.department);
+    final _positionController = TextEditingController(text: employee.position);
+    final _phoneController =
+        TextEditingController(text: employee.phoneNumber ?? '');
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Edit ${employee.name}'),
-        content:
-            const Text('Edit employee functionality will be implemented here.'),
+        content: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _departmentController,
+                  decoration: const InputDecoration(labelText: 'Department'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _positionController,
+                  decoration: const InputDecoration(labelText: 'Position'),
+                  validator: (value) =>
+                      value?.isEmpty ?? true ? 'Required' : null,
+                ),
+                TextFormField(
+                  controller: _phoneController,
+                  decoration:
+                      const InputDecoration(labelText: 'Phone (Optional)'),
+                ),
+              ],
+            ),
+          ),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Save')),
+            onPressed: () async {
+              if (_formKey.currentState?.validate() ?? false) {
+                final updatedEmployee = EmployeeEntity(
+                  id: employee.id,
+                  name: _nameController.text,
+                  email: _emailController.text,
+                  department: _departmentController.text,
+                  position: _positionController.text,
+                  phoneNumber: _phoneController.text.isEmpty
+                      ? null
+                      : _phoneController.text,
+                  avatarUrl: employee.avatarUrl,
+                  isActive: employee.isActive,
+                  isClockedIn: employee.isClockedIn,
+                  lastClockIn: employee.lastClockIn,
+                  lastClockOut: employee.lastClockOut,
+                  hireDate: employee.hireDate,
+                );
+
+                await ref
+                    .read(employeeProvider.notifier)
+                    .updateEmployee(updatedEmployee);
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content:
+                          Text('${updatedEmployee.name} updated successfully')),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -498,8 +645,10 @@ class _EmployeeRecordsScreenState extends ConsumerState<EmployeeRecordsScreen> {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
-              // TODO: Implement delete functionality
+            onPressed: () async {
+              await ref
+                  .read(employeeProvider.notifier)
+                  .deleteEmployee(employee.id);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('${employee.name} has been deleted')),
